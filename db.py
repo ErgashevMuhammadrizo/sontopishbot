@@ -5,11 +5,11 @@ from datetime import datetime
 DB_PATH = os.path.join(os.path.dirname(__file__), "data.json")
 
 # ─── XP Tizimi ───────────────────────────────────────────────
-XP_PER_WIN        = 30   # Oddiy o'yinda 1 g'alaba = 30 XP
-XP_BATTLE_WIN     = 20   # 1vs1 battle yutganda +20 XP
-XP_BATTLE_LOSE    = 10   # 1vs1 battle yutkazganda -10 XP
+XP_PER_WIN        = 30
+XP_BATTLE_WIN     = 20
+XP_BATTLE_LOSE    = 10
 
-# ─── Darajalar tizimi (XP bo'yicha) ─────────────────────────
+# ─── Darajalar ───────────────────────────────────────────────
 RANKS = [
     {"name": "🥉 Yangi boshlovchi", "min_xp": 0},
     {"name": "🥈 O'yinchi",         "min_xp": 150},
@@ -28,19 +28,19 @@ def get_rank(xp: int) -> str:
 def get_next_rank_info(xp: int) -> str | None:
     for r in RANKS:
         if xp < r["min_xp"]:
-            needed = r["min_xp"] - xp
-            return f"{r['name']} darajasiga {needed} XP kerak"
+            return f"{r['name']} darajasiga {r['min_xp'] - xp} XP kerak"
     return None
 
 
-# ─── Yuklash / saqlash ───────────────────────────────────────
+# ─── Yuklash / Saqlash ───────────────────────────────────────
 def _load() -> dict:
     if not os.path.exists(DB_PATH):
         _save({"users": {}, "games": {}, "battles": {}, "states": {}, "daily": {}})
     with open(DB_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
-    if "daily"   not in data: data["daily"]   = {}
-    if "battles" not in data: data["battles"] = {}
+    for key in ("daily", "battles", "games", "states"):
+        if key not in data:
+            data[key] = {}
     return data
 
 def _save(data: dict):
@@ -76,15 +76,18 @@ def upsert_user(user_id: int, first_name: str, last_name: str | None, username: 
         }
     else:
         u = db["users"][key]
-        u["first_name"] = first_name or u["first_name"]
-        u["last_name"]  = last_name  or u["last_name"]
-        u["username"]   = username   or u["username"]
-        # Eski foydalanuvchilarda yangi maydonlar bo'lmasa qo'shamiz
-        if "xp"            not in u: u["xp"]            = u.get("wins", 0) * XP_PER_WIN
-        if "battle_wins"   not in u: u["battle_wins"]   = 0
-        if "battle_losses" not in u: u["battle_losses"] = 0
+        if first_name: u["first_name"] = first_name
+        if last_name:  u["last_name"]  = last_name
+        if username:   u["username"]   = username
+        # Eski userlar uchun yangi maydonlar
+        for field, default in [("xp", 0), ("battle_wins", 0), ("battle_losses", 0), ("bonus_wins", 0)]:
+            if field not in u:
+                u[field] = default
     _save(db)
     return is_new
+
+def get_user(user_id: int) -> dict | None:
+    return _load()["users"].get(str(user_id))
 
 def get_all_users() -> list:
     db = _load()
@@ -101,8 +104,7 @@ def find_user(query: str) -> dict | None:
     return None
 
 def is_banned(user_id: int) -> bool:
-    db = _load()
-    u  = db["users"].get(str(user_id))
+    u = _load()["users"].get(str(user_id))
     return bool(u and u.get("banned"))
 
 def ban_user(user_id: int):
@@ -124,10 +126,11 @@ def add_bonus_wins(user_id: int, amount: int) -> bool:
     key = str(user_id)
     if key not in db["users"]:
         return False
-    db["users"][key]["wins"]        += amount
-    db["users"][key]["bonus_wins"]  += amount
-    db["users"][key]["total_games"] += amount
-    db["users"][key]["xp"]          = db["users"][key].get("xp", 0) + amount * XP_PER_WIN
+    u = db["users"][key]
+    u["wins"]        += amount
+    u["bonus_wins"]  += amount
+    u["total_games"] += amount
+    u["xp"]           = u.get("xp", 0) + amount * XP_PER_WIN
     _save(db)
     return True
 
@@ -219,20 +222,31 @@ def clear_all_games():
 
 
 # ─── 1vs1 Battle ─────────────────────────────────────────────
+# Battle strukturasi:
+#   status: waiting | playing | finished
+#   secret: umumiy yashirin son (ikkala user topadi)
+#   turn: kim navbatda (challenger | opponent)
+#   challenger_guesses: []   — challenger kiritgan sonlar
+#   opponent_guesses: []     — opponent kiritgan sonlar
+#   winner: None | user_id
+#   challenger_done: bool
+#   opponent_done: bool
+
 def create_battle(challenger_id: int) -> str:
-    """Battle yaratish. Battle ID qaytaradi."""
     db = _load()
     battle_id = f"b_{challenger_id}_{int(datetime.now().timestamp())}"
     db["battles"][battle_id] = {
-        "challenger":    challenger_id,
-        "opponent":      None,
-        "status":        "waiting",      # waiting | playing | finished
-        "challenger_secret": None,
-        "opponent_secret":   None,
-        "challenger_score":  None,       # urinishlar soni (yutsa), None = yutqazdi
-        "opponent_score":    None,
-        "winner":        None,
-        "created_at":    datetime.now().strftime("%d.%m.%Y %H:%M"),
+        "challenger":          challenger_id,
+        "opponent":            None,
+        "status":              "waiting",
+        "secret":              None,
+        "turn":                "challenger",   # kim navbatda
+        "challenger_guesses":  [],
+        "opponent_guesses":    [],
+        "challenger_done":     False,
+        "opponent_done":       False,
+        "winner":              None,
+        "created_at":          datetime.now().strftime("%d.%m.%Y %H:%M"),
     }
     _save(db)
     return battle_id
@@ -241,7 +255,6 @@ def get_battle(battle_id: str) -> dict | None:
     return _load()["battles"].get(battle_id)
 
 def get_battle_by_user(user_id: int) -> tuple[str, dict] | tuple[None, None]:
-    """Foydalanuvchining aktiv battleni topish."""
     db = _load()
     for bid, b in db["battles"].items():
         if b["status"] in ("waiting", "playing"):
@@ -249,78 +262,126 @@ def get_battle_by_user(user_id: int) -> tuple[str, dict] | tuple[None, None]:
                 return bid, b
     return None, None
 
-def join_battle(battle_id: str, opponent_id: int, challenger_secret: int, opponent_secret: int) -> bool:
+def join_battle(battle_id: str, opponent_id: int, secret: int) -> bool:
     db = _load()
     if battle_id not in db["battles"]:
         return False
     b = db["battles"][battle_id]
     if b["status"] != "waiting":
         return False
-    b["opponent"]         = opponent_id
-    b["status"]           = "playing"
-    b["challenger_secret"] = challenger_secret
-    b["opponent_secret"]   = opponent_secret
+    b["opponent"] = opponent_id
+    b["status"]   = "playing"
+    b["secret"]   = secret
+    b["turn"]     = "challenger"
     _save(db)
     return True
 
-def set_battle_score(battle_id: str, user_id: int, score: int | None):
-    """score = urinishlar soni (yutsa), None = yutqazdi."""
+def battle_make_guess(battle_id: str, user_id: int, num: int) -> dict:
+    """
+    Taxmin qilish.
+    Returns: {
+        "correct": bool,
+        "hint": "higher"|"lower"|"correct",
+        "turn_switched": bool,
+        "rival_num": int|None,   # raqibning oxirgi taxmini (navbat almashinsa)
+        "guess_count": int,      # bu userning taxminlar soni
+    }
+    """
     db = _load()
-    if battle_id not in db["battles"]:
-        return
-    b = db["battles"][battle_id]
-    if b["challenger"] == user_id:
-        b["challenger_score"] = score
-    elif b["opponent"] == user_id:
-        b["opponent_score"] = score
+    b  = db["battles"][battle_id]
+    is_challenger = (b["challenger"] == user_id)
+    role = "challenger" if is_challenger else "opponent"
+    guesses_key = f"{role}_guesses"
+
+    b[guesses_key].append(num)
+    secret = b["secret"]
+
+    if num == secret:
+        b[f"{role}_done"] = True
+        b["turn"] = "opponent" if is_challenger else "challenger"
+        _save(db)
+        return {
+            "correct":      True,
+            "hint":         "correct",
+            "turn_switched": True,
+            "guess_count":  len(b[guesses_key]),
+        }
+
+    hint = "higher" if num < secret else "lower"
+    # Navbatni almashtir
+    b["turn"] = "opponent" if is_challenger else "challenger"
     _save(db)
+    return {
+        "correct":      False,
+        "hint":         hint,
+        "turn_switched": True,
+        "guess_count":  len(b[guesses_key]),
+    }
+
+def whose_turn(battle_id: str) -> str | None:
+    """'challenger' yoki 'opponent' qaytaradi."""
+    b = _load()["battles"].get(battle_id)
+    if not b or b["status"] != "playing":
+        return None
+    return b.get("turn")
 
 def finish_battle(battle_id: str) -> dict | None:
-    """Ikkala natija tayyor bo'lsa battleni yakunlash. Winner dict qaytaradi."""
     db = _load()
     if battle_id not in db["battles"]:
         return None
     b = db["battles"][battle_id]
-    if b["challenger_score"] == "pending" or b["opponent_score"] == "pending":
-        return None
 
-    cs = b["challenger_score"]
-    os_ = b["opponent_score"]
+    c_guesses = b["challenger_guesses"]
+    o_guesses = b["opponent_guesses"]
 
-    # Yutuvchini aniqlash: kichik urinish = yaxshiroq; None = yutqazdi
-    if cs is None and os_ is None:
-        winner_id = None  # Draw (ikkalasi ham yutqazdi)
-    elif cs is None:
-        winner_id = b["opponent"]
-    elif os_ is None:
+    # Kim topdi va nechta urinishda?
+    secret = b["secret"]
+    c_score = None
+    o_score = None
+
+    for i, g in enumerate(c_guesses):
+        if g == secret:
+            c_score = i + 1
+            break
+    for i, g in enumerate(o_guesses):
+        if g == secret:
+            o_score = i + 1
+            break
+
+    # G'olibni aniqlash
+    if c_score is not None and o_score is not None:
+        if c_score < o_score:
+            winner_id = b["challenger"]
+        elif o_score < c_score:
+            winner_id = b["opponent"]
+        else:
+            winner_id = None  # teng
+    elif c_score is not None:
         winner_id = b["challenger"]
-    elif cs < os_:
-        winner_id = b["challenger"]
-    elif os_ < cs:
+    elif o_score is not None:
         winner_id = b["opponent"]
     else:
-        winner_id = None  # Teng natija
+        winner_id = None
 
-    b["winner"] = winner_id
-    b["status"] = "finished"
+    b["winner"]           = winner_id
+    b["status"]           = "finished"
+    b["challenger_score"] = c_score
+    b["opponent_score"]   = o_score
 
     # XP berish
     c_id = str(b["challenger"])
     o_id = str(b["opponent"])
     if c_id in db["users"] and o_id in db["users"]:
         if winner_id == b["challenger"]:
-            db["users"][c_id]["xp"]           = db["users"][c_id].get("xp", 0) + XP_BATTLE_WIN
-            db["users"][c_id]["battle_wins"]   = db["users"][c_id].get("battle_wins", 0) + 1
-            db["users"][o_id]["xp"]            = max(0, db["users"][o_id].get("xp", 0) - XP_BATTLE_LOSE)
-            db["users"][o_id]["battle_losses"] = db["users"][o_id].get("battle_losses", 0) + 1
+            db["users"][c_id]["xp"]            = db["users"][c_id].get("xp", 0) + XP_BATTLE_WIN
+            db["users"][c_id]["battle_wins"]    = db["users"][c_id].get("battle_wins", 0) + 1
+            db["users"][o_id]["xp"]             = max(0, db["users"][o_id].get("xp", 0) - XP_BATTLE_LOSE)
+            db["users"][o_id]["battle_losses"]  = db["users"][o_id].get("battle_losses", 0) + 1
         elif winner_id == b["opponent"]:
-            db["users"][o_id]["xp"]            = db["users"][o_id].get("xp", 0) + XP_BATTLE_WIN
-            db["users"][o_id]["battle_wins"]    = db["users"][o_id].get("battle_wins", 0) + 1
-            db["users"][c_id]["xp"]             = max(0, db["users"][c_id].get("xp", 0) - XP_BATTLE_LOSE)
-            db["users"][c_id]["battle_losses"]  = db["users"][c_id].get("battle_losses", 0) + 1
-        else:
-            # Draw — XP o'zgarmaydi
-            pass
+            db["users"][o_id]["xp"]             = db["users"][o_id].get("xp", 0) + XP_BATTLE_WIN
+            db["users"][o_id]["battle_wins"]     = db["users"][o_id].get("battle_wins", 0) + 1
+            db["users"][c_id]["xp"]              = max(0, db["users"][c_id].get("xp", 0) - XP_BATTLE_LOSE)
+            db["users"][c_id]["battle_losses"]   = db["users"][c_id].get("battle_losses", 0) + 1
 
     _save(db)
     return b
@@ -331,13 +392,8 @@ def delete_battle(battle_id: str):
     _save(db)
 
 def get_waiting_battles() -> list[tuple[str, dict]]:
-    """Kutayotgan battlelar ro'yxati."""
     db = _load()
-    result = []
-    for bid, b in db["battles"].items():
-        if b["status"] == "waiting":
-            result.append((bid, b))
-    return result
+    return [(bid, b) for bid, b in db["battles"].items() if b["status"] == "waiting"]
 
 
 # ─── Statistika ──────────────────────────────────────────────
@@ -346,8 +402,8 @@ def get_user_stats(user_id: int) -> dict | None:
     u  = db["users"].get(str(user_id))
     if not u:
         return None
-    xp  = u.get("xp", u.get("wins", 0) * XP_PER_WIN)
-    avg = round(u["total_attempts"] / u["wins"], 1) if u["wins"] > 0 else None
+    xp  = u.get("xp", 0)
+    avg = round(u["total_attempts"] / u["wins"], 1) if u.get("wins", 0) > 0 else None
     return {
         **u,
         "xp":           xp,
@@ -359,17 +415,15 @@ def get_user_stats(user_id: int) -> dict | None:
 def get_global_stats() -> dict:
     db    = _load()
     users = list(db["users"].values())
-    total_games  = sum(u["total_games"]    for u in users)
-    total_wins   = sum(u["wins"]           for u in users)
-    total_losses = sum(u["losses"]         for u in users)
-    total_att    = sum(u["total_attempts"] for u in users)
+    total_games  = sum(u.get("total_games", 0)    for u in users)
+    total_wins   = sum(u.get("wins", 0)           for u in users)
+    total_losses = sum(u.get("losses", 0)         for u in users)
+    total_att    = sum(u.get("total_attempts", 0) for u in users)
     banned_count = sum(1 for u in users if u.get("banned"))
     win_rate     = round((total_wins / total_games) * 100) if total_games > 0 else 0
     avg          = round(total_att / total_wins, 1) if total_wins > 0 else "—"
-    today      = _today()
-    today_data = db.get("daily", {}).get(today, {})
-    # Faol / bot bloklagan hisob (haqiqiy Telegram API kerak, DB dan approximation)
-    active_battles = sum(1 for b in db.get("battles", {}).values() if b["status"] in ("waiting","playing"))
+    today_data   = db.get("daily", {}).get(_today(), {})
+    active_battles = sum(1 for b in db.get("battles", {}).values() if b["status"] in ("waiting", "playing"))
     return {
         "total_users":    len(users),
         "banned_count":   banned_count,
@@ -391,13 +445,13 @@ def get_leaderboard(limit: int = 10) -> list:
     result = []
     for u in users[:limit]:
         xp  = u.get("xp", 0)
-        avg = round(u["total_attempts"] / u["wins"], 1) if u["wins"] > 0 else "—"
+        avg = round(u["total_attempts"] / u["wins"], 1) if u.get("wins", 0) > 0 else "—"
         result.append({**u, "avg_attempts": avg, "rank": get_rank(xp), "xp": xp})
     return result
 
 def get_daily_stats(days: int = 7) -> list:
-    db     = _load()
-    daily  = db.get("daily", {})
+    db    = _load()
+    daily = db.get("daily", {})
     result = []
     for d in sorted(daily.keys(), reverse=True)[:days]:
         info = daily[d]
@@ -411,8 +465,7 @@ def get_daily_stats(days: int = 7) -> list:
     return result
 
 def get_banned_users() -> list:
-    db = _load()
-    return [u for u in db["users"].values() if u.get("banned")]
+    return [u for u in _load()["users"].values() if u.get("banned")]
 
 
 # ─── State ───────────────────────────────────────────────────

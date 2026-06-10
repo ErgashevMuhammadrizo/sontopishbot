@@ -52,11 +52,11 @@ class GameState(StatesGroup):
     playing = State()
 
 class BattleState(StatesGroup):
-    playing = State()   # Battle o'yinida
+    playing = State()
 
 
 # ══════════════════════════════════════════════════════════════
-#  YORDAMCHI
+#  YORDAMCHI FUNKSIYALAR
 # ══════════════════════════════════════════════════════════════
 
 def is_admin(uid: int) -> bool:
@@ -70,6 +70,13 @@ def user_display(u: dict) -> str:
         name += f" {u['last_name']}"
     return name or str(u["user_id"])
 
+def hint_text(hint: str) -> str:
+    if hint == "higher":
+        return "⬆️ <b>Tepparoq!</b>"
+    if hint == "lower":
+        return "⬇️ <b>Pastroq!</b>"
+    return "✅ <b>To'g'ri!</b>"
+
 
 # ══════════════════════════════════════════════════════════════
 #  KLAVIATURALAR
@@ -78,7 +85,7 @@ def user_display(u: dict) -> str:
 def main_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🎮 O'yin boshlash"),   KeyboardButton(text="⚔️ 1vs1 Battle")],
+            [KeyboardButton(text="🎮 O'yin boshlash"),    KeyboardButton(text="⚔️ 1vs1 Battle")],
             [KeyboardButton(text="📊 Mening statistikam"), KeyboardButton(text="🏆 Reyting")],
             [KeyboardButton(text="ℹ️ Qoidalar")],
         ],
@@ -156,7 +163,8 @@ async def cmd_start(message: Message, state: FSMContext, bot: Bot):
         "Har taxminingizdan keyin yo'nalish beraman:\n"
         "⬆️ <b>Tepparoq</b> — kiritgan son kichik bo'lsa\n"
         "⬇️ <b>Pastroq</b> — kiritgan son katta bo'lsa\n\n"
-        "⚔️ <b>Yangi:</b> 1vs1 Battle rejimi — raqibingizni yeng va XP yig'!\n\n"
+        "⚔️ <b>1vs1 Battle:</b> Ikkala o'yinchi bir xil yashirin sonni topadi.\n"
+        "Navbat bilan o'ynaladi. Birinchi topgan — G'OLIB!\n\n"
         "Quyidagi tugmalardan foydalaning 👇",
         reply_markup=main_keyboard(),
     )
@@ -187,7 +195,6 @@ async def cmd_cancel(message: Message, state: FSMContext):
     uid = message.from_user.id
     await state.clear()
     db.clear_game(uid)
-    # Aktiv battleni ham o'chirish
     bid, _ = db.get_battle_by_user(uid)
     if bid:
         db.delete_battle(bid)
@@ -246,7 +253,7 @@ async def cmd_unban(message: Message, bot: Bot):
 
 
 # ══════════════════════════════════════════════════════════════
-#  O'YIN — boshlash
+#  ODDIY O'YIN
 # ══════════════════════════════════════════════════════════════
 
 @router.message(F.text == "🎮 O'yin boshlash")
@@ -270,10 +277,6 @@ async def start_game(message: Message, state: FSMContext):
         reply_markup=ReplyKeyboardRemove(),
     )
 
-
-# ══════════════════════════════════════════════════════════════
-#  O'YIN — taxmin
-# ══════════════════════════════════════════════════════════════
 
 @router.message(GameState.playing)
 async def process_guess(message: Message, state: FSMContext):
@@ -344,7 +347,14 @@ async def process_guess(message: Message, state: FSMContext):
 
 
 # ══════════════════════════════════════════════════════════════
-#  1vs1 BATTLE
+#  1vs1 BATTLE — YANGI LOGIKA
+#
+#  Qoidalar:
+#  • Battle boshlanganda 1 ta umumiy yashirin son o'ylanadi
+#  • Challenger birinchi o'ynaydi, keyin opponent, navbat almashinadi
+#  • Har taxmindan so'ng raqibga "U X kiritdi, Y dedi" xabari ketadi
+#  • Imkoniyatlar cheksiz — birinchi topgan g'olib
+#  • Navbat almashinishi majburiy — navbat bo'lmaganida yozsang ogohlantiriladi
 # ══════════════════════════════════════════════════════════════
 
 @router.message(F.text == "⚔️ 1vs1 Battle")
@@ -354,7 +364,6 @@ async def battle_menu(message: Message, state: FSMContext):
         await message.answer("🚫 Siz botdan bloklangansiz.")
         return
 
-    # Avvalgi game/battle tekshirish
     bid, existing = db.get_battle_by_user(uid)
     if bid:
         await message.answer(
@@ -363,19 +372,15 @@ async def battle_menu(message: Message, state: FSMContext):
         )
         return
 
-    # Kutayotgan battle bormi?
-    waiting = db.get_waiting_battles()
-    # O'z battleini ko'rsatmaslik
-    waiting = [(bid2, b) for bid2, b in waiting if b["challenger"] != uid]
+    waiting = [(b2, b) for b2, b in db.get_waiting_battles() if b["challenger"] != uid]
 
     if waiting:
-        # Birinchi kutayotgan battlega qo'shilish
         bid2, b = waiting[0]
         challenger = db.find_user(str(b["challenger"]))
-        c_name = user_display(challenger) if challenger else str(b["challenger"])
+        c_name  = user_display(challenger) if challenger else str(b["challenger"])
         c_stats = db.get_user_stats(b["challenger"])
-        c_xp   = c_stats["xp"] if c_stats else 0
-        c_rank = c_stats["rank"] if c_stats else "—"
+        c_xp    = c_stats["xp"]   if c_stats else 0
+        c_rank  = c_stats["rank"] if c_stats else "—"
 
         await message.answer(
             f"⚔️ <b>Battle topildi!</b>\n\n"
@@ -385,8 +390,7 @@ async def battle_menu(message: Message, state: FSMContext):
             reply_markup=battle_join_inline(bid2, c_name),
         )
     else:
-        # Yangi battle yaratish
-        bid2 = db.create_battle(uid)
+        bid2     = db.create_battle(uid)
         my_stats = db.get_user_stats(uid)
         my_xp    = my_stats["xp"] if my_stats else 0
 
@@ -422,27 +426,27 @@ async def cb_join_battle(call: CallbackQuery, state: FSMContext, bot: Bot):
         await call.answer("🚫 Siz bloklangansiz.", show_alert=True)
         return
 
-    # Ikkala o'yinchiga turli sonlar
-    c_secret = random.randint(1, 100)
-    o_secret = random.randint(1, 100)
-    while o_secret == c_secret:
-        o_secret = random.randint(1, 100)
-
-    db.join_battle(battle_id, uid, c_secret, o_secret)
+    # Umumiy bir xil yashirin son
+    secret = random.randint(1, 100)
+    ok = db.join_battle(battle_id, uid, secret)
+    if not ok:
+        await call.answer("❌ Battle boshlashda xatolik.", show_alert=True)
+        return
 
     challenger = db.find_user(str(battle["challenger"]))
     c_name     = user_display(challenger) if challenger else str(battle["challenger"])
-    my_name    = call.from_user.first_name or str(uid)
+    o_name     = call.from_user.first_name or str(uid)
 
-    # Challanger ga xabar
+    # Challenger ga xabar (u birinchi o'ynaydi)
     try:
         await bot.send_message(
             battle["challenger"],
             f"⚔️ <b>Battle boshlandi!</b>\n\n"
-            f"🥊 Raqibingiz: <b>@{call.from_user.username or my_name}</b>\n\n"
-            f"Men 1–100 oralig'ida son o'yladim.\n"
-            f"Sizda <b>5 ta imkoniyat</b> bor!\n\n"
-            f"Birinchi taxminingizni yuboring:",
+            f"🥊 Raqibingiz: <b>{o_name}</b>\n\n"
+            f"Men 1–100 oralig'ida <b>bitta umumiy son</b> o'yladim.\n"
+            f"Ikkingiz ham shu sonni topishingiz kerak!\n\n"
+            f"🎯 <b>Siz birinchi o'ynaysiz!</b>\n"
+            f"Taxminingizni yuboring 👇",
             reply_markup=ReplyKeyboardRemove(),
         )
     except Exception:
@@ -452,18 +456,14 @@ async def cb_join_battle(call: CallbackQuery, state: FSMContext, bot: Bot):
     await call.message.answer(
         f"⚔️ <b>Battle boshlandi!</b>\n\n"
         f"🥊 Raqibingiz: <b>{c_name}</b>\n\n"
-        f"Men 1–100 oralig'ida son o'yladim.\n"
-        f"Sizda <b>5 ta imkoniyat</b> bor!\n\n"
-        f"Birinchi taxminingizni yuboring:",
+        f"Men 1–100 oralig'ida <b>bitta umumiy son</b> o'yladim.\n"
+        f"Ikkingiz ham shu sonni topishingiz kerak!\n\n"
+        f"⏳ <b>Hozir raqibingiz navbatida.</b> Kutib turing...",
         reply_markup=ReplyKeyboardRemove(),
     )
 
-    # FSM stateni o'rnatish — ikkala o'yinchi uchun
     await state.set_state(BattleState.playing)
-    await state.update_data(battle_id=battle_id, role="opponent")
-
-    # Challenger FSM ni alohida o'rnatib bo'lmaydi (aiogram limitation)
-    # Challenger o'zi yozganda battle state detect qilamiz
+    await state.update_data(battle_id=battle_id)
 
 
 # ── Battle rad etish ──────────────────────────────────────────
@@ -480,7 +480,7 @@ async def cb_decline_battle(call: CallbackQuery, bot: Bot):
         try:
             await bot.send_message(
                 battle["challenger"],
-                f"😔 Raqib battle taklifingizni rad etdi.\n\nQaytadan urinib ko'ring!",
+                "😔 Raqib battle taklifingizni rad etdi.\n\nQaytadan urinib ko'ring!",
                 reply_markup=main_keyboard(),
             )
         except Exception:
@@ -490,12 +490,95 @@ async def cb_decline_battle(call: CallbackQuery, bot: Bot):
 
 # ── Battle o'yini — taxmin ────────────────────────────────────
 
+async def _process_battle_guess(uid: int, num: int, battle_id: str, battle: dict,
+                                 message: Message, state: FSMContext, bot: Bot):
+    """Battle taxminini qayta ishlash — challenger va opponent uchun umumiy kod."""
+
+    is_challenger = (battle["challenger"] == uid)
+    role          = "challenger" if is_challenger else "opponent"
+    rival_id      = battle["opponent"] if is_challenger else battle["challenger"]
+
+    # Navbat tekshirish
+    turn = db.whose_turn(battle_id)
+    my_turn_role = "challenger" if is_challenger else "opponent"
+    if turn != my_turn_role:
+        await message.answer("⏳ Hozir <b>raqibingiz navbati</b>. Kutib turing...")
+        return
+
+    # Taxminni qayta ishlash
+    result = db.battle_make_guess(battle_id, uid, num)
+
+    # Raqibga xabar — "U X kiritdi, Y dedi"
+    rival_user = db.find_user(str(uid))
+    my_name    = user_display(rival_user) if rival_user else str(uid)
+
+    if result["correct"]:
+        # Men topdim!
+        guess_count = result["guess_count"]
+
+        await message.answer(
+            f"🏆 <b>TOPDINGIZ!</b>\n\n"
+            f"🔢 Yashirin son: <b>{battle['secret']}</b>\n"
+            f"⚡ {guess_count} ta urinishda topdingiz!\n\n"
+            f"⏳ Natija hisoblanmoqda..."
+        )
+
+        # Raqibga g'alaba xabari
+        try:
+            await bot.send_message(
+                rival_id,
+                f"😔 <b>Raqibingiz sonni topdi!</b>\n\n"
+                f"🥊 {my_name} — {guess_count} urinishda topdi.\n"
+                f"🔢 Yashirin son: <b>{battle['secret']}</b>\n\n"
+                f"Natija chiqarilmoqda..."
+            )
+        except Exception:
+            pass
+
+        # Battleni yakunlash
+        finished = db.finish_battle(battle_id)
+        if finished:
+            await _send_battle_result(finished, bot, state)
+        return
+
+    # Noto'g'ri taxmin
+    h_text       = hint_text(result["hint"])
+    guess_count  = result["guess_count"]
+
+    await message.answer(
+        f"⚔️ <b>Battle</b> | {h_text}\n\n"
+        f"Kiritdingiz: <b>{num}</b>\n"
+        f"Jami urinishlaringiz: <b>{guess_count}</b>\n\n"
+        f"⏳ Raqibingiz navbati. Kutib turing..."
+    )
+
+    # Raqibga: "U X kiritdi, Y dedi — endi sening navbating"
+    rival_hint = "tepparoq" if result["hint"] == "higher" else "pastroq"
+    try:
+        await bot.send_message(
+            rival_id,
+            f"🎯 <b>Raqibingiz taxmin qildi!</b>\n\n"
+            f"🥊 {my_name}: <b>{num}</b> kiritdi\n"
+            f"💬 Bot: {rival_hint} dedi\n\n"
+            f"🎮 <b>Sening navbating!</b> Taxminingizni yuboring 👇"
+        )
+    except Exception:
+        pass
+
+
 @router.message(BattleState.playing)
 async def battle_guess(message: Message, state: FSMContext, bot: Bot):
     uid  = message.from_user.id
     text = message.text.strip() if message.text else ""
 
-    # Battle topish
+    try:
+        num = int(text)
+        if not (1 <= num <= 100):
+            raise ValueError
+    except ValueError:
+        await message.answer("⚠️ Battle o'yinidasiz! 1–100 oralig'ida butun son kiriting.")
+        return
+
     data      = await state.get_data()
     battle_id = data.get("battle_id")
 
@@ -510,152 +593,13 @@ async def battle_guess(message: Message, state: FSMContext, bot: Bot):
         await message.answer("⚔️ Battle topilmadi.", reply_markup=main_keyboard())
         return
 
-    # Bu foydalanuvchi challenger yoki opponent?
-    is_challenger = (battle["challenger"] == uid)
-    my_secret     = battle["challenger_secret"] if is_challenger else battle["opponent_secret"]
-    rival_id      = battle["opponent"] if is_challenger else battle["challenger"]
-
-    # Temp game state battle uchun (FSM data dan)
-    b_game_key = f"battle_game_{battle_id}_{uid}"
-    b_data     = data.get(b_game_key, {"chances": 5, "guesses": []})
-
-    try:
-        num = int(text)
-        if not (1 <= num <= 100):
-            raise ValueError
-    except ValueError:
-        await message.answer("⚠️ Iltimos 1 dan 100 gacha butun son kiriting.")
-        return
-
-    remaining = b_data["chances"] - 1
-    b_data["guesses"].append(num)
-    b_data["chances"] = remaining
-    await state.update_data(**{b_game_key: b_data})
-
-    # To'g'ri topdi
-    if num == my_secret:
-        used = 5 - remaining
-        db.set_battle_score(battle_id, uid, used)
-
-        # Raqibga xabar (agar raqib hali tugatmagan bo'lsa)
-        updated_battle = db.get_battle(battle_id)
-        rival_score = updated_battle["opponent_score"] if is_challenger else updated_battle["challenger_score"]
-
-        await message.answer(
-            f"🎯 <b>Topdingiz!</b> {used} urinishda!\n\n"
-            f"⏳ Raqibingiz hali o'ynayapti... Natija kutilmoqda!"
-        )
-
-        # Ikkala natija tayyor bo'lsa yakunlash
-        _try_finish_battle(battle_id, bot, message, state, uid, rival_id)
-        return
-
-    # Urinishlar tugadi
-    if remaining == 0:
-        db.set_battle_score(battle_id, uid, None)  # None = yutqazdi
-
-        await message.answer(
-            f"😔 <b>Imkoniyatlar tugadi!</b>\n\n"
-            f"🔢 Son: <b>{my_secret}</b> edi.\n\n"
-            f"⏳ Raqibingiz hali o'ynayapti... Natija kutilmoqda!"
-        )
-
-        _try_finish_battle(battle_id, bot, message, state, uid, rival_id)
-        return
-
-    # Davom etish
-    hint = "⬆️ <b>Tepparoq!</b>" if num < my_secret else "⬇️ <b>Pastroq!</b>"
-    dots = "🟢" * remaining + "⚫" * (5 - remaining)
-    warn = "\n⚠️ <b>Oxirgi imkoniyat!</b>" if remaining == 1 else ""
-
-    await message.answer(
-        f"⚔️ <b>Battle | {hint}</b>\n\n"
-        f"Kiritdingiz: <b>{num}</b>\n"
-        f"Imkoniyatlar: {dots} ({remaining} qoldi){warn}\n\n"
-        f"Keyingi taxminingizni yuboring:"
-    )
+    await _process_battle_guess(uid, num, battle_id, battle, message, state, bot)
 
 
-def _try_finish_battle(battle_id, bot, message, state, my_id, rival_id):
-    """Agar ikkala o'yinchi ham tugatgan bo'lsa, natijani chiqarish."""
-    asyncio.create_task(_finish_battle_task(battle_id, bot, message, state, my_id, rival_id))
-
-
-async def _finish_battle_task(battle_id, bot, message, state, my_id, rival_id):
-    b = db.get_battle(battle_id)
-    if not b:
-        return
-
-    # Ikkala natija kelganmi?
-    if b["challenger_score"] == "pending" or b["opponent_score"] == "pending":
-        return
-    if b["challenger"] == my_id and b["opponent_score"] is not None and b["opponent_score"] != "pending":
-        pass
-    elif b["opponent"] == my_id and b["challenger_score"] is not None and b["challenger_score"] != "pending":
-        pass
-    else:
-        # Raqib hali tugatalib
-        return
-
-    finished = db.finish_battle(battle_id)
-    if not finished or finished["status"] != "finished":
-        return
-
-    c_id    = finished["challenger"]
-    o_id    = finished["opponent"]
-    winner  = finished["winner"]
-    cs      = finished["challenger_score"]
-    os_     = finished["opponent_score"]
-
-    c_user  = db.find_user(str(c_id))
-    o_user  = db.find_user(str(o_id))
-    c_name  = user_display(c_user) if c_user else str(c_id)
-    o_name  = user_display(o_user) if o_user else str(o_id)
-
-    def score_str(s):
-        return f"{s} urinishda" if s is not None else "topa olmadi"
-
-    if winner is None:
-        result_line = "🤝 <b>Durrang!</b>"
-        xp_c = xp_o = "±0"
-    elif winner == c_id:
-        result_line = f"🏆 <b>G'olib: {c_name}!</b>"
-        xp_c = f"+{db.XP_BATTLE_WIN}"
-        xp_o = f"-{db.XP_BATTLE_LOSE}"
-    else:
-        result_line = f"🏆 <b>G'olib: {o_name}!</b>"
-        xp_c = f"-{db.XP_BATTLE_LOSE}"
-        xp_o = f"+{db.XP_BATTLE_WIN}"
-
-    result_msg = (
-        f"⚔️ <b>Battle Yakunlandi!</b>\n\n"
-        f"{result_line}\n\n"
-        f"📊 <b>Natijalar:</b>\n"
-        f"• {c_name}: {score_str(cs)}  ({xp_c} XP)\n"
-        f"• {o_name}: {score_str(os_)}  ({xp_o} XP)\n\n"
-        f"🔄 Qayta o'ynash uchun ⚔️ 1vs1 Battle bosing!"
-    )
-
-    # Ikkala o'yinchiga yuborish
-    try:
-        await bot.send_message(c_id, result_msg, reply_markup=main_keyboard())
-    except Exception:
-        pass
-    try:
-        await bot.send_message(o_id, result_msg, reply_markup=main_keyboard())
-    except Exception:
-        pass
-
-    # FSM tozalash (o'zimizni)
-    await state.clear()
-
-
-# ── Battle qabul qilmaganda (challenger FSM state yo'q) ───────
-# Challenger battle_id dan game detect qilamiz fallback da
+# ── Challenger fallback (FSM state yo'q bo'lganda) ────────────
 
 @router.message(F.text)
-async def handle_challenger_battle_guess(message: Message, state: FSMContext, bot: Bot):
-    """Challenger FSM state yo'q bo'lsa, aktiv battle orqali aniqlash."""
+async def handle_text_fallback(message: Message, state: FSMContext, bot: Bot):
     uid = message.from_user.id
 
     if db.is_banned(uid):
@@ -671,58 +615,65 @@ async def handle_challenger_battle_guess(message: Message, state: FSMContext, bo
             if not (1 <= num <= 100):
                 raise ValueError
         except ValueError:
-            await message.answer("⚠️ Battle o'yinidasiz! 1–100 oralig'ida son kiriting.")
+            await message.answer("⚠️ Battle o'yinidasiz! 1–100 oralig'ida butun son kiriting.")
             return
 
-        is_challenger = (battle["challenger"] == uid)
-        my_secret     = battle["challenger_secret"] if is_challenger else battle["opponent_secret"]
-        rival_id      = battle["opponent"] if is_challenger else battle["challenger"]
-
-        # Temp state
-        curr_state = await state.get_state()
-        data       = await state.get_data()
-        b_game_key = f"battle_game_{bid}_{uid}"
-        b_data     = data.get(b_game_key, {"chances": 5, "guesses": []})
-
-        remaining = b_data["chances"] - 1
-        b_data["guesses"].append(num)
-        b_data["chances"] = remaining
-        await state.update_data(**{b_game_key: b_data})
-
-        if num == my_secret:
-            used = 5 - remaining
-            db.set_battle_score(bid, uid, used)
-            await message.answer(
-                f"🎯 <b>Topdingiz!</b> {used} urinishda!\n\n"
-                f"⏳ Raqibingiz hali o'ynayapti... Natija kutilmoqda!"
-            )
-            _try_finish_battle(bid, bot, message, state, uid, rival_id)
-            return
-
-        if remaining == 0:
-            db.set_battle_score(bid, uid, None)
-            await message.answer(
-                f"😔 <b>Imkoniyatlar tugadi!</b>\n\n"
-                f"🔢 Son: <b>{my_secret}</b> edi.\n\n"
-                f"⏳ Raqibingiz hali o'ynayapti..."
-            )
-            _try_finish_battle(bid, bot, message, state, uid, rival_id)
-            return
-
-        hint = "⬆️ <b>Tepparoq!</b>" if num < my_secret else "⬇️ <b>Pastroq!</b>"
-        dots = "🟢" * remaining + "⚫" * (5 - remaining)
-        warn = "\n⚠️ <b>Oxirgi imkoniyat!</b>" if remaining == 1 else ""
-        await message.answer(
-            f"⚔️ <b>Battle | {hint}</b>\n\n"
-            f"Kiritdingiz: <b>{num}</b>\n"
-            f"Imkoniyatlar: {dots} ({remaining} qoldi){warn}\n\n"
-            f"Keyingi taxminingizni yuboring:"
-        )
+        await state.set_state(BattleState.playing)
+        await state.update_data(battle_id=bid)
+        await _process_battle_guess(uid, num, bid, battle, message, state, bot)
         return
 
-    # Oddiy fallback
     kb = admin_keyboard() if is_admin(uid) else main_keyboard()
     await message.answer("👇 Quyidagi tugmalardan foydalaning:", reply_markup=kb)
+
+
+# ── Battle natijasini yuborish ────────────────────────────────
+
+async def _send_battle_result(finished: dict, bot: Bot, state: FSMContext):
+    c_id   = finished["challenger"]
+    o_id   = finished["opponent"]
+    winner = finished["winner"]
+    cs     = finished["challenger_score"]  # nechta urinishda topdi
+    os_    = finished["opponent_score"]
+
+    c_user = db.find_user(str(c_id))
+    o_user = db.find_user(str(o_id))
+    c_name = user_display(c_user) if c_user else str(c_id)
+    o_name = user_display(o_user) if o_user else str(o_id)
+
+    def score_str(s):
+        return f"{s} urinishda topdi ✅" if s is not None else "topa olmadi ❌"
+
+    if winner is None:
+        result_line = "🤝 <b>Durrang!</b>"
+        xp_c = xp_o = "±0"
+    elif winner == c_id:
+        result_line = f"🏆 <b>G'olib: {c_name}!</b>"
+        xp_c = f"+{db.XP_BATTLE_WIN}"
+        xp_o = f"-{db.XP_BATTLE_LOSE}"
+    else:
+        result_line = f"🏆 <b>G'olib: {o_name}!</b>"
+        xp_c = f"-{db.XP_BATTLE_LOSE}"
+        xp_o = f"+{db.XP_BATTLE_WIN}"
+
+    secret = finished.get("secret", "?")
+    result_msg = (
+        f"⚔️ <b>Battle Yakunlandi!</b>\n\n"
+        f"{result_line}\n\n"
+        f"🔢 Yashirin son: <b>{secret}</b>\n\n"
+        f"📊 <b>Natijalar:</b>\n"
+        f"• {c_name}: {score_str(cs)}  ({xp_c} XP)\n"
+        f"• {o_name}: {score_str(os_)}  ({xp_o} XP)\n\n"
+        f"🔄 Qayta o'ynash uchun ⚔️ 1vs1 Battle bosing!"
+    )
+
+    for uid in (c_id, o_id):
+        try:
+            await bot.send_message(uid, result_msg, reply_markup=main_keyboard())
+        except Exception:
+            pass
+
+    await state.clear()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -737,16 +688,11 @@ async def my_stats(message: Message):
         await message.answer("📊 Hali statistika yo'q. O'yin boshlang!", reply_markup=main_keyboard())
         return
     xp        = s.get("xp", 0)
-    win_rate  = round((s["wins"] / s["total_games"]) * 100) if s["total_games"] > 0 else 0
+    win_rate  = round((s["wins"] / s["total_games"]) * 100) if s.get("total_games", 0) > 0 else 0
     avg       = s["avg_attempts"] or "—"
     best      = s["best_score"]   or "—"
     next_rank = s.get("next_rank") or "Maksimal darajaga erishdingiz! 👑"
     bonus_line = f"\n🎁 Bonus g'alabalar: <b>{s.get('bonus_wins', 0)}</b>" if s.get("bonus_wins") else ""
-    battle_line = (
-        f"\n\n⚔️ <b>Battle:</b>\n"
-        f"🏆 Battle g'alabalar: <b>{s.get('battle_wins', 0)}</b>\n"
-        f"😔 Battle mag'lubiyatlar: <b>{s.get('battle_losses', 0)}</b>"
-    )
 
     await message.answer(
         f"📊 <b>Sizning statistikangiz</b>\n\n"
@@ -756,8 +702,10 @@ async def my_stats(message: Message):
         f"😔 Mag'lubiyatlar: <b>{s['losses']}</b>\n"
         f"📈 G'alaba foizi: <b>{win_rate}%</b>\n"
         f"⚡ O'rtacha urinish: <b>{avg}</b>\n"
-        f"🥇 Eng yaxshi natija: <b>{best} urinish</b>{bonus_line}"
-        f"{battle_line}\n\n"
+        f"🥇 Eng yaxshi natija: <b>{best} urinish</b>{bonus_line}\n\n"
+        f"⚔️ <b>Battle:</b>\n"
+        f"🏆 Battle g'alabalar: <b>{s.get('battle_wins', 0)}</b>\n"
+        f"😔 Battle mag'lubiyatlar: <b>{s.get('battle_losses', 0)}</b>\n\n"
         f"📌 <i>{next_rank}</i>",
         reply_markup=main_keyboard(),
     )
@@ -787,29 +735,32 @@ async def leaderboard(message: Message):
 async def rules(message: Message):
     await message.answer(
         "ℹ️ <b>O'yin Qoidalari</b>\n\n"
-        "1️⃣ Bot 1–100 oralig'ida yashirin son o'ylaydi\n"
-        "2️⃣ Sizga <b>5 ta</b> taxmin qilish imkoni beriladi\n"
-        "3️⃣ Har taxmingizdan keyin bot yo'nalish beradi\n\n"
-        "💰 <b>XP Tizimi:</b>\n"
+        "━━━ 🎮 Oddiy O'yin ━━━\n"
+        "• Bot 1–100 oralig'ida yashirin son o'ylaydi\n"
+        "• Sizga <b>5 ta</b> taxmin qilish imkoni beriladi\n"
+        "• Har taxmingizdan keyin: ⬆️ Tepparoq / ⬇️ Pastroq\n\n"
+        "━━━ ⚔️ 1vs1 Battle ━━━\n"
+        "• Ikkala o'yinchi <b>bir xil yashirin son</b>ni topadi\n"
+        "• <b>Navbat bilan</b> taxmin qilinadi\n"
+        "• <b>Imkoniyatlar cheksiz</b> — birinchi topgan g'olib!\n"
+        "• Har taxmindan so'ng raqibga xabar ketadi\n\n"
+        "━━━ 💰 XP Tizimi ━━━\n"
         f"✅ Oddiy o'yin g'alabasi: <b>+{db.XP_PER_WIN} XP</b>\n"
-        f"⚔️ 1vs1 Battle yutish: <b>+{db.XP_BATTLE_WIN} XP</b>\n"
-        f"😔 1vs1 Battle yutqazish: <b>-{db.XP_BATTLE_LOSE} XP</b>\n\n"
-        "🏅 <b>Darajalar (XP bo'yicha):</b>\n"
+        f"⚔️ Battle g'alabasi: <b>+{db.XP_BATTLE_WIN} XP</b>\n"
+        f"😔 Battle mag'lubiyati: <b>-{db.XP_BATTLE_LOSE} XP</b>\n\n"
+        "━━━ 🏅 Darajalar ━━━\n"
         "🥉 Yangi boshlovchi — 0+ XP\n"
         "🥈 O'yinchi — 150+ XP\n"
         "🥇 Tajribali — 450+ XP\n"
         "💎 Expert — 900+ XP\n"
         "👑 Legend — 1500+ XP\n\n"
-        "⚔️ <b>1vs1 Battle:</b>\n"
-        "Ikki o'yinchi bir vaqtda o'ynaydi.\n"
-        "Kim kamroq urinishda topsa — g'olib!\n\n"
         "<i>Omad tilaymiz!</i> 🍀",
         reply_markup=main_keyboard(),
     )
 
 
 # ══════════════════════════════════════════════════════════════
-#  ADMIN — tugmalar
+#  ADMIN PANEL
 # ══════════════════════════════════════════════════════════════
 
 @router.message(F.text == "👥 Foydalanuvchilar")
@@ -847,7 +798,7 @@ async def global_stats(message: Message):
         f"📈 <b>Umumiy Statistika</b>\n\n"
         f"👥 Jami foydalanuvchilar: <b>{s['total_users']}</b>\n"
         f"🚫 Bloklangan: <b>{s['banned_count']}</b>\n"
-        f"✅ Faol (bloklanmagan): <b>{s['total_users'] - s['banned_count']}</b>\n\n"
+        f"✅ Faol: <b>{s['total_users'] - s['banned_count']}</b>\n\n"
         f"🎮 Jami o'yinlar: <b>{s['total_games']}</b>\n"
         f"🏆 G'alabalar: <b>{s['total_wins']}</b>\n"
         f"😔 Mag'lubiyatlar: <b>{s['total_losses']}</b>\n"
@@ -874,7 +825,7 @@ async def daily_report(message: Message):
     for d in data:
         lines.append(
             f"📅 <b>{d['date']}</b>\n"
-            f"   🎮 {d['games']} o'yin | 🏆 {d['wins']} g'alaba | 😔 {d['losses']} mags | 👤 {d['players']} o'yinchi"
+            f"   🎮 {d['games']} o'yin | 🏆 {d['wins']} g'alaba | 😔 {d['losses']} mag | 👤 {d['players']} o'yinchi"
         )
     await message.answer(
         "📅 <b>So'nggi 7 kunlik hisobot</b>\n\n" + "\n\n".join(lines),
@@ -912,7 +863,7 @@ async def prompt_broadcast(message: Message, state: FSMContext):
     await message.answer(
         "📢 <b>Hammaga xabar yuborish</b>\n\n"
         "Xabar matnini yozing.\n"
-        "Ixtiyoriy: rasm + matn birgalikda yuborishingiz mumkin.\n\n"
+        "Rasm + matn birgalikda yuborishingiz mumkin.\n\n"
         "/cancel — bekor qilish",
         reply_markup=ReplyKeyboardRemove(),
     )
@@ -922,7 +873,7 @@ async def do_broadcast(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
     users  = [u for u in db.get_all_users() if not u.get("banned")]
     prefix = "📢 <b>Bot xabari:</b>\n\n"
-    await message.answer(f"⏳ {len(users)} ta foydalanuvchiga yuborilmoqda...")
+    await message.answer(f"⏳ {len(users)} ta foydalanuvchiga yuborilmoqda...", reply_markup=admin_keyboard())
     sent = failed = 0
     for u in users:
         try:
@@ -962,7 +913,7 @@ async def do_search(message: Message, state: FSMContext):
         await message.answer("❌ Foydalanuvchi topilmadi.", reply_markup=admin_keyboard())
         return
     s          = db.get_user_stats(user["user_id"]) or {}
-    name       = user.get("first_name", "") + (" " + user["last_name"] if user.get("last_name") else "")
+    name       = (user.get("first_name", "") + " " + user.get("last_name", "")).strip()
     uname      = f"@{user['username']}" if user.get("username") else "—"
     ban_status = "🚫 Bloklangan" if user.get("banned") else "✅ Faol"
     win_rate   = round((s["wins"] / s["total_games"]) * 100) if s.get("total_games", 0) > 0 else 0
@@ -1034,7 +985,7 @@ async def do_bonus(message: Message, state: FSMContext, bot: Bot):
     )
 
 
-# ── Bonus inline ──────────────────────────────────────────────
+# ── Bonus inline (qidiruv orqali) ────────────────────────────
 
 @router.message(AdminStates.bonus_inline)
 async def do_bonus_inline(message: Message, state: FSMContext, bot: Bot):
@@ -1087,7 +1038,7 @@ async def back_to_main(message: Message, state: FSMContext):
 
 
 # ══════════════════════════════════════════════════════════════
-#  CALLBACK HANDLER
+#  CALLBACK HANDLERLAR
 # ══════════════════════════════════════════════════════════════
 
 @router.callback_query(F.data.startswith("ban_"))
