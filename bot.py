@@ -596,37 +596,6 @@ async def battle_guess(message: Message, state: FSMContext, bot: Bot):
     await _process_battle_guess(uid, num, battle_id, battle, message, state, bot)
 
 
-# ── Challenger fallback (FSM state yo'q bo'lganda) ────────────
-
-@router.message(F.text)
-async def handle_text_fallback(message: Message, state: FSMContext, bot: Bot):
-    uid = message.from_user.id
-
-    if db.is_banned(uid):
-        await message.answer("🚫 Siz botdan bloklangansiz.")
-        return
-
-    # Aktiv battle bormi?
-    bid, battle = db.get_battle_by_user(uid)
-    if bid and battle and battle["status"] == "playing":
-        text = message.text.strip() if message.text else ""
-        try:
-            num = int(text)
-            if not (1 <= num <= 100):
-                raise ValueError
-        except ValueError:
-            await message.answer("⚠️ Battle o'yinidasiz! 1–100 oralig'ida butun son kiriting.")
-            return
-
-        await state.set_state(BattleState.playing)
-        await state.update_data(battle_id=bid)
-        await _process_battle_guess(uid, num, bid, battle, message, state, bot)
-        return
-
-    kb = admin_keyboard() if is_admin(uid) else main_keyboard()
-    await message.answer("👇 Quyidagi tugmalardan foydalaning:", reply_markup=kb)
-
-
 # ── Battle natijasini yuborish ────────────────────────────────
 
 async def _send_battle_result(finished: dict, bot: Bot, state: FSMContext):
@@ -1108,6 +1077,37 @@ async def cb_confirm_clear(call: CallbackQuery):
 async def cb_cancel_clear(call: CallbackQuery):
     await call.answer("Bekor qilindi")
     await call.message.answer("❌ Bekor qilindi.", reply_markup=admin_keyboard())
+
+
+# ── Challenger fallback (FSM state yo'q bo'lganda) ────────────
+
+@router.message(F.text)
+async def handle_text_fallback(message: Message, state: FSMContext, bot: Bot):
+    uid = message.from_user.id
+
+    if db.is_banned(uid):
+        await message.answer("🚫 Siz botdan bloklangansiz.")
+        return
+
+    # Aktiv battle bormi?
+    bid, battle = db.get_battle_by_user(uid)
+    if bid and battle and battle["status"] == "playing":
+        text = message.text.strip() if message.text else ""
+        try:
+            num = int(text)
+            if not (1 <= num <= 100):
+                raise ValueError
+        except ValueError:
+            await message.answer("⚠️ Battle o'yinidasiz! 1–100 oralig'ida butun son kiriting.")
+            return
+
+        await state.set_state(BattleState.playing)
+        await state.update_data(battle_id=bid)
+        await _process_battle_guess(uid, num, bid, battle, message, state, bot)
+        return
+
+    kb = admin_keyboard() if is_admin(uid) else main_keyboard()
+    await message.answer("👇 Quyidagi tugmalardan foydalaning:", reply_markup=kb)
 
 
 # ══════════════════════════════════════════════════════════════

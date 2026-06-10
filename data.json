@@ -659,9 +659,50 @@
       "banned": false,
       "bonus_wins": 0,
       "xp": 0
+    },
+    "7805404693": {
+      "user_id": 7805404693,
+      "first_name": "ㅤ",
+      "last_name": "",
+      "username": "abu_khurayra",
+      "joined_at": "10.06.2026 16:40",
+      "total_games": 0,
+      "wins": 0,
+      "losses": 0,
+      "total_attempts": 0,
+      "best_score": null,
+      "banned": false,
+      "bonus_wins": 0,
+      "xp": 0,
+      "battle_wins": 0,
+      "battle_losses": 0
+    },
+    "2061996333": {
+      "user_id": 2061996333,
+      "first_name": "Isroil",
+      "last_name": "Sodiqov",
+      "username": "Isroil_Sodiqov",
+      "joined_at": "10.06.2026 16:40",
+      "total_games": 0,
+      "wins": 0,
+      "losses": 0,
+      "total_attempts": 0,
+      "best_score": null,
+      "banned": false,
+      "bonus_wins": 0,
+      "xp": 0,
+      "battle_wins": 0,
+      "battle_losses": 0
     }
   },
-  "games": {},
+  "games": {
+    "8240386376": {
+      "secret": 8,
+      "chances": 5,
+      "total_chances": 5,
+      "guesses": []
+    }
+  },
   "battles": {},
   "states": {},
   "daily": {
