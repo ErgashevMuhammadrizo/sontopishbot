@@ -6,14 +6,14 @@
       "last_name": "",
       "username": "azamxon12",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 62,
-      "wins": 21,
-      "losses": 41,
+      "total_games": 207,
+      "wins": 61,
+      "losses": 146,
       "total_attempts": 84,
       "best_score": 2,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 630
+      "xp": 1790
     },
     "8458928674": {
       "user_id": 8458928674,
@@ -21,14 +21,14 @@
       "last_name": "",
       "username": "xakimov1177",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 29,
-      "wins": 9,
-      "losses": 20,
+      "total_games": 314,
+      "wins": 76,
+      "losses": 88,
       "total_attempts": 36,
       "best_score": 2,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 270
+      "xp": 1870
     },
     "6813967420": {
       "user_id": 6813967420,
@@ -49,16 +49,16 @@
       "user_id": 6611338724,
       "first_name": "Rizo",
       "last_name": "",
-      "username": "rizo3313",
+      "username": "rizo_coder",
       "joined_at": "09.06.2026 16:47",
-      "total_games": 29,
+      "total_games": 31,
       "wins": 5,
-      "losses": 24,
+      "losses": 26,
       "total_attempts": 20,
       "best_score": 3,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 150
+      "xp": 100000
     },
     "8167773543": {
       "user_id": 8167773543,
@@ -88,7 +88,7 @@
       "best_score": 2,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 150
+      "xp": 170
     },
     "8390479413": {
       "user_id": 8390479413,
@@ -96,14 +96,14 @@
       "last_name": "",
       "username": "asadbek_dev",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 13,
-      "wins": 4,
-      "losses": 9,
+      "total_games": 15,
+      "wins": 5,
+      "losses": 10,
       "total_attempts": 16,
       "best_score": 2,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 120
+      "xp": 140
     },
     "1856563190": {
       "user_id": 1856563190,
@@ -126,14 +126,14 @@
       "last_name": "",
       "username": "vaqtinchalik_userim",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 8,
-      "wins": 3,
-      "losses": 5,
+      "total_games": 49,
+      "wins": 14,
+      "losses": 35,
       "total_attempts": 12,
       "best_score": 3,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 90
+      "xp": 420
     },
     "653663677": {
       "user_id": 653663677,
@@ -156,14 +156,14 @@
       "last_name": "",
       "username": "bshaxriyor",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 4,
-      "wins": 2,
+      "total_games": 5,
+      "wins": 3,
       "losses": 2,
       "total_attempts": 8,
       "best_score": 3,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 60
+      "xp": 90
     },
     "7281495879": {
       "user_id": 7281495879,
@@ -171,14 +171,14 @@
       "last_name": "",
       "username": "rafkix",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 14,
-      "wins": 2,
-      "losses": 12,
+      "total_games": 22,
+      "wins": 5,
+      "losses": 17,
       "total_attempts": 8,
       "best_score": 3,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 60
+      "xp": 150
     },
     "5626563006": {
       "user_id": 5626563006,
@@ -186,14 +186,14 @@
       "last_name": "",
       "username": "RogRepublic",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 11,
-      "wins": 2,
-      "losses": 9,
+      "total_games": 20,
+      "wins": 3,
+      "losses": 17,
       "total_attempts": 8,
       "best_score": 3,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 60
+      "xp": 110
     },
     "866489508": {
       "user_id": 866489508,
@@ -201,14 +201,14 @@
       "last_name": "Naimov",
       "username": "naimov_sodiq",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 15,
-      "wins": 2,
-      "losses": 13,
+      "total_games": 17,
+      "wins": 3,
+      "losses": 14,
       "total_attempts": 8,
       "best_score": 3,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 60
+      "xp": 110
     },
     "5265182645": {
       "user_id": 5265182645,
@@ -216,14 +216,14 @@
       "last_name": "",
       "username": "dostonbek_05",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 7,
-      "wins": 2,
-      "losses": 5,
+      "total_games": 9,
+      "wins": 3,
+      "losses": 6,
       "total_attempts": 8,
       "best_score": 3,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 60
+      "xp": 90
     },
     "7679489830": {
       "user_id": 7679489830,
@@ -231,9 +231,9 @@
       "last_name": "",
       "username": "abdurahmon7o7",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 5,
+      "total_games": 6,
       "wins": 1,
-      "losses": 4,
+      "losses": 5,
       "total_attempts": 4,
       "best_score": 4,
       "banned": false,
@@ -381,14 +381,14 @@
       "last_name": "",
       "username": "aza_developer",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 1,
-      "wins": 1,
-      "losses": 0,
+      "total_games": 3,
+      "wins": 2,
+      "losses": 1,
       "total_attempts": 4,
       "best_score": 4,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 30
+      "xp": 60
     },
     "5883840381": {
       "user_id": 5883840381,
@@ -606,14 +606,14 @@
       "last_name": "Xolmurodov",
       "username": "XolmurodovShodmon",
       "joined_at": "01.06.2026 10:00",
-      "total_games": 3,
-      "wins": 0,
-      "losses": 3,
+      "total_games": 10,
+      "wins": 2,
+      "losses": 8,
       "total_attempts": 0,
       "best_score": null,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 0
+      "xp": 60
     },
     "773611464": {
       "user_id": 773611464,
@@ -683,6 +683,23 @@
       "last_name": "Sodiqov",
       "username": "Isroil_Sodiqov",
       "joined_at": "10.06.2026 16:40",
+      "total_games": 1,
+      "wins": 0,
+      "losses": 1,
+      "total_attempts": 0,
+      "best_score": null,
+      "banned": false,
+      "bonus_wins": 0,
+      "xp": 20,
+      "battle_wins": 0,
+      "battle_losses": 0
+    },
+    "6972232777": {
+      "user_id": 6972232777,
+      "first_name": "iuzweb",
+      "last_name": "",
+      "username": "iuzweb",
+      "joined_at": "01.06.2026 10:00",
       "total_games": 0,
       "wins": 0,
       "losses": 0,
@@ -690,9 +707,52 @@
       "best_score": null,
       "banned": false,
       "bonus_wins": 0,
-      "xp": 0,
-      "battle_wins": 0,
-      "battle_losses": 0
+      "xp": 40
+    },
+    "1738161732": {
+      "user_id": 1738161732,
+      "first_name": "coder_nurmatov",
+      "last_name": "",
+      "username": "coder_nurmatov",
+      "joined_at": "01.06.2026 10:00",
+      "total_games": 3,
+      "wins": 2,
+      "losses": 1,
+      "total_attempts": 8,
+      "best_score": 3,
+      "banned": false,
+      "bonus_wins": 0,
+      "xp": 60
+    },
+    "1781021406": {
+      "user_id": 1781021406,
+      "first_name": "Xafiza",
+      "last_name": "",
+      "username": "xafizaxon_1988",
+      "joined_at": "01.06.2026 10:00",
+      "total_games": 1,
+      "wins": 1,
+      "losses": 0,
+      "total_attempts": 4,
+      "best_score": 4,
+      "banned": false,
+      "bonus_wins": 0,
+      "xp": 30
+    },
+    "5750845012": {
+      "user_id": 5750845012,
+      "first_name": "D_Y_M",
+      "last_name": "",
+      "username": "D_Y_M_10",
+      "joined_at": "01.06.2026 10:00",
+      "total_games": 4,
+      "wins": 1,
+      "losses": 3,
+      "total_attempts": 4,
+      "best_score": 4,
+      "banned": false,
+      "bonus_wins": 0,
+      "xp": 20
     }
   },
   "games": {
